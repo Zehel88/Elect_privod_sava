@@ -22,7 +22,7 @@ function varargout = dip(varargin)
 
 % Edit the above text to modify the response to help dip
 
-% Last Modified by GUIDE v2.5 24-Dec-2015 14:14:45
+% Last Modified by GUIDE v2.5 24-Dec-2015 19:01:25
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -253,7 +253,7 @@ Y_j=Ch_Int(Ain(P(cur_par,1),P(cur_par,2),P(cur_par,3),koefs(2,1),koefs(2,2)),Bin
     W(cur_par,1) = L2_norm + C_norm + L2_fuz;
     cur_par
 end
-
+W
 [tmp, min_index] = min(W);
 
 %   3') for better understanding - show the etalon and selected outputs together
@@ -484,20 +484,214 @@ open('diplom_model.slx');
 
 % -----------------Запуск моделирования (форма меню)---------------
 function Untitled_2_Callback(hObject, eventdata, handles)
+%% Алгоритм 
 clc
 % Подгружаем модель симулинк
 load_system('diplom_model.slx');
+
+
+
 % Шаг интегрирования
 h=str2double(get_param('diplom_model','Fixedstep'));
 % Время моделирования
 stop_t=str2double(get_param('diplom_model','stoptime'));
 t=str2double(get_param('diplom_model','Starttime')):h:stop_t;
 
-% Метод алгоритмический
 % Подгружаем файл настроек
 load('Prefs.mat');
 % Задаем желаемые параметры регулятора в форме НЧ
-params=table;
+if exist('Prefs.mat')==2
+    ce=Prefs.params(1:3,:);
+    for i=1:numel(ce)
+       params(i)=str2double(ce{i} );
+    end
+    
+params=reshape(params,3,4);
+
+else
+    run('Prefs.m')
+end
+
+% Получаем ПФ системы
+syms s Kp1 Kp2 Ki1 Ki2 
+% Получаем ПФ блоков модели
+TF1_num=poly2sym(get_param('diplom_model/TF1','Numerator'),s);
+TF1_den=poly2sym(get_param('diplom_model/TF1','Denominator'),s);
+TF2_num=poly2sym(get_param('diplom_model/TF2','Numerator'),s);
+TF2_den=poly2sym(get_param('diplom_model/TF2','Denominator'),s);
+TF3_num=poly2sym(get_param('diplom_model/TF3','Numerator'),s);
+TF3_den=poly2sym(get_param('diplom_model/TF3','Denominator'),s);
+% ПФ регуляторов
+P1=Kp1+Ki1/s;
+P2=Kp2+Ki2/s;
+% Коэф обратной связи
+G1=get_param('diplom_model/G1','Gain');
+G2=get_param('diplom_model/G2','Gain');
+% Внутренний контур
+Wvk=collect((P1*TF1_num*TF2_num/(TF1_den*TF2_den))/(1+G1*P1*TF1_num*TF2_num/(TF1_den*TF2_den)),s);
+% Пф системы
+W=collect((Wvk*P2*TF3_num/TF3_den)/(1+Wvk*P2*TF3_num/TF3_den*G2),s);
+
+[Numsc Densc]=numden(W);
+
+Numsc_c=rot90(rot90(coeffs(Numsc,s)));
+
+Densc_c=rot90(rot90(coeffs(Densc,s)));
+x0=zeros(numel(Densc_c),1);
+[Asc,Bsc]=KNF(Numsc_c,Densc_c);
+
+Ain=inline(Asc);
+
+Bin=inline(Bsc);
+
+% ==========================================================================
+
+% Определяем размерность матриц параметров
+param_number = numel(params(1,:));
+
+
+
+% Буфферная переменная для параметров регулятора
+P = zeros( 3^param_number, param_number );
+
+isbreak = 0; j = 1;
+while ( isbreak ~= 1 )
+    
+ind =   ones( param_number ,1);
+% Cоздадим переменные для заполнения
+
+Y_j = zeros( length(x0), length(t) );  
+Y_fuz = zeros( 3 , length(t) );       
+W = zeros(3^param_number, 1);         
+
+% Эталон
+[Aet,Bet,Xet]=KNF([1],[2/2.9 1],h,str2double(get_param('diplom_model','stoptime')),'dnplot');
+axes(handles.axes2);
+plot(t,Xet);grid on;
+xlabel('График эталонной функции');
+
+continue_process = 20;
+while( continue_process ~= 0 )
+continue_process
+isbreak = 0;
+j = 1;
+while ( isbreak ~= 1 )
+    % Формируем новую матрицу параметров
+    for k = 1:param_number
+        P(j,k) = params( ind(k) , k);
+    end
+
+    % Индексация матрицы
+    isset = 0; k = 1;
+    while (isset ~= 1)
+        if( k > param_number )
+            isset = 1; isbreak = 1; break
+        elseif( ind(k) < 3 )
+            ind(k) = ind(k) + 1; isset = 1;
+        else
+            ind(k) = 1; k = k + 1;
+        end
+    end
+    j = j+1;
+end 
+
+
+for cur_par = 1:3^param_number
+
+
+Y_j=Ch_Int(Ain(P(cur_par,1),P(cur_par,2),P(cur_par,3),P(cur_par,4)),Bin(P(cur_par,1),P(cur_par,2),P(cur_par,3),P(cur_par,4)),h,t);
+
+    Y_fuz(2,:) = Y_j(1,:);
+    %   2.3) form the fuzzy output estimation
+    Y_fuz(1,:) = max( Y_j );
+    Y_fuz(3,:) = min( Y_j );
+
+    %   2.4) form the weightpoint of this combination of parameters
+    %   2.4.1) form the L2-norm of core, versus ethalon as sqrt( sum( (y-yj)^2 ) )
+    L2_norm = sqrt( sum( (Xet(1,:) - Y_fuz(2, :)).^2 ) );
+    %   2.4.2) form the C-norm of core, versus ethalon as max( abs( y-yj) )
+    C_norm = max( Xet(1,:) - Y_fuz(2,:) );
+    %   2.4.3) form the weight, based on L2-norm of fyzzy borders.
+    L2_fuz = sqrt( sum( (Y_fuz(1,:) - Y_fuz(3, :)).^2 ) );
+    %   2.4.4) make the weight of current  coefficient to be SUM of found norm-based values
+    W(cur_par,1) = L2_norm + C_norm + L2_fuz;
+
+end
+
+[tmp, min_index] = min(W);
+
+
+Y_j=Ch_Int(Ain(P(min_index,1),P(min_index,2),P(min_index,3),P(min_index,4)),Bin(P(min_index,1),P(min_index,2),P(min_index,3),P(min_index,4)),h,t);     
+
+
+Y_fuz(2,:) = Y_j(1,:);
+%   form the fuzzy output estimation
+Y_fuz(1,:) = max( Y_j );
+Y_fuz(3,:) = min( Y_j );
+
+axes(handles.axes2);
+plot( t, Xet(1,:), t, Y_fuz(1,:), t, Y_fuz(2,:), t, Y_fuz(3,:) );
+grid on;
+legend('Ethalon','Higher border','Core','Lower border');
+
+P( min_index, : )
+W( min_index, : )
+
+
+
+
+
+%   5) here we form a new parameters matrix.
+for j = 1:param_number
+    % in case we found core to be optimal
+    if P( min_index, j ) == params(2,j)
+        params(1,j) = ( params(1,j) + params(2,j) ) / 2;   % lower support
+        params(3,j) = ( params(3,j) + params(2,j) ) / 2;   % higher support
+    % in case lower support is found to be optimal
+    elseif P( min_index, j ) == params(1,j)
+        params(3,j) = params(2,j);     % core becomes higher support
+        % lower support stais itself
+        params(2,j) = (params(3,j) + params(1,j))/2; % support is considered to be symmethrical
+    % in case higher support is found to be optimal
+    elseif P( min_index, j ) == params(3,j)
+        params(1,j) = params(2,j);    % core becomes lower support
+        % higher support remains itself
+        params(2,j) = (params(3,j) + params(1,j))/2;  % support is considered to be symmethrical
+    end
+end
+
+
+continue_process = continue_process - 1;
+% if continue_process == 0
+%     continue_process = input(' Do you wish to continue? (0 = No, 1 = Yes) :  ');
+%     if continue_process ~= 0
+%         close all; continue_process = 10;
+%     else
+%         clear all; close all; continue_process = 0;
+%     end
+% end
+
+
+
+end
+end
+params
+set_param('diplom_model/P1','P',num2str(params(2,3)))
+set_param('diplom_model/P1','I',num2str(params(2,1)))
+set_param('diplom_model/P2','P',num2str(params(2,4)))
+set_param('diplom_model/P2','I',num2str(params(2,2)))
+
+save_system('diplom_model');
+
+sim('diplom_model')
+
+load('fr_model.mat');
+axes(handles.axes1)
+plot(fr_model(1,:),fr_model(2,:))
+
+
+
+% ===========================================================================
 
 
 
@@ -508,9 +702,3 @@ params=table;
 function Untitled_3_Callback(hObject, eventdata, handles)
 %% Настройки
 run('Prefs.m');
-
-
-
-
-
-

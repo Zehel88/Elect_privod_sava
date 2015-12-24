@@ -22,7 +22,7 @@ function varargout = Prefs(varargin)
 
 % Edit the above text to modify the response to help Prefs
 
-% Last Modified by GUIDE v2.5 24-Dec-2015 15:05:17
+% Last Modified by GUIDE v2.5 24-Dec-2015 18:43:13
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -58,10 +58,11 @@ handles.output = hObject;
 % Update handles structure
 guidata(hObject, handles);
 %% Начальные данные
+if exist('Prefs.mat')==2
 load('Prefs.mat');
 % Загуржаем ранее использованные параметры
 set(handles.uitable1,'DaTa',Prefs.params);
-
+end
 
 
 % UIWAIT makes Prefs wait for user response (see UIRESUME)
@@ -84,10 +85,16 @@ function pushbutton1_Callback(hObject, eventdata, handles)
 %% Применить изменения
 % Сохраняем новые значения параметров
 Prefs.params=get(handles.uitable1,'DaTa');
+
+if isempty(Prefs.params{3,4})==0
 save('Prefs.mat','Prefs');
 
-
 close('Prefs');
+else
+    errordlg('Задайте параметры!!!');
+end
+
+
 
 
 
@@ -95,8 +102,9 @@ close('Prefs');
 % --- Кнопка "Отмена"
 function pushbutton2_Callback(hObject, eventdata, handles)
 %% Отменить изменения
+Prefs.params=get(handles.uitable1,'DaTa');
+if isempty(Prefs.params{3,4})==0
 close('Prefs');
-
-
-
-
+else
+   errordlg('Задайте параметры!!!'); 
+end
