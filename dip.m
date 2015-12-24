@@ -57,11 +57,7 @@ handles.output = hObject;
 % Update handles structure
 guidata(hObject, handles);
 % ==========================================================
-% preload
-set(handles.uitable4,'Visible','off');
-set(handles.checkbox1,'Value',0);
-load('table.mat');
-set(handles.uitable1,'DaTa',[table(1,:);table(2,:);table(3,:)]);
+
 
 % UIWAIT makes dip wait for user response (see UIRESUME)
 % uiwait(handles.figure1);
@@ -488,8 +484,20 @@ open('diplom_model.slx');
 
 % -----------------Запуск моделирования (форма меню)---------------
 function Untitled_2_Callback(hObject, eventdata, handles)
+clc
+% Подгружаем модель симулинк
+load_system('diplom_model.slx');
+% Шаг интегрирования
+h=str2double(get_param('diplom_model','Fixedstep'));
+% Время моделирования
+stop_t=str2double(get_param('diplom_model','stoptime'));
+t=str2double(get_param('diplom_model','Starttime')):h:stop_t;
 
-
+% Метод алгоритмический
+% Подгружаем файл настроек
+load('Prefs.mat');
+% Задаем желаемые параметры регулятора в форме НЧ
+params=table;
 
 
 
@@ -498,10 +506,11 @@ function Untitled_2_Callback(hObject, eventdata, handles)
 
 % -----------Настройки (форма меню)------------------------------
 function Untitled_3_Callback(hObject, eventdata, handles)
-load('Prefs');
-prompt = {'Введите время управления:'};
-dlg_title = 'Input';
-def = {'2'};
-res = str2double(inputdlg(prompt,dlg_title,1,def));
-Prefs{1,2}=res;
-save('Prefs.mat','Prefs');
+%% Настройки
+run('Prefs.m');
+
+
+
+
+
+
