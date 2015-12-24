@@ -22,7 +22,7 @@ function varargout = dip(varargin)
 
 % Edit the above text to modify the response to help dip
 
-% Last Modified by GUIDE v2.5 18-Dec-2015 07:03:08
+% Last Modified by GUIDE v2.5 24-Dec-2015 14:14:45
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -41,8 +41,6 @@ if nargout
 else
     gui_mainfcn(gui_State, varargin{:});
 end
-
-% End initialization code - DO NOT EDIT
 
 
 % --- Executes just before dip is made visible.
@@ -80,10 +78,6 @@ function varargout = dip_OutputFcn(hObject, eventdata, handles)
 varargout{1} = handles.output;
 
 
-% --- Open simulink model
-function pushbutton1_Callback(hObject, eventdata, handles)
-% open model
-open('diplom_model.slx');
 
 
 % --- Run model
@@ -460,15 +454,6 @@ else
 end
 
 
-% -----------
-function prefs_ClickedCallback(hObject, eventdata, handles)
-load('Prefs');
-prompt = {'Введите время управления:'};
-dlg_title = 'Input';
-def = {'2'};
-res = str2double(inputdlg(prompt,dlg_title,1,def));
-Prefs{1,2}=res;
-save('Prefs.mat','Prefs');
 
 
 % --- Executes on button press in pushbutton3.
@@ -488,19 +473,35 @@ function pushbutton3_Callback(hObject, eventdata, handles)
           plot(fres.fr_d_m(1,:),fres.fr_d_m(2,:));
 
           
-            
-            
-           
-%      
-% 
-%             
-
-            
-            
-            
-            
-            
-            
+              
             
 
 
+% ----------------Запуск модели симулинк (форма меню)-------------
+function Untitled_1_Callback(hObject, eventdata, handles)
+%% Открытие модели симелинк 
+open('diplom_model.slx');
+
+
+
+
+
+% -----------------Запуск моделирования (форма меню)---------------
+function Untitled_2_Callback(hObject, eventdata, handles)
+
+
+
+
+
+
+
+
+% -----------Настройки (форма меню)------------------------------
+function Untitled_3_Callback(hObject, eventdata, handles)
+load('Prefs');
+prompt = {'Введите время управления:'};
+dlg_title = 'Input';
+def = {'2'};
+res = str2double(inputdlg(prompt,dlg_title,1,def));
+Prefs{1,2}=res;
+save('Prefs.mat','Prefs');
